@@ -30,9 +30,42 @@ func HashTreeRootUint64(value uint64) types.Root {
 	return types.Root(buf)
 }
 
+func HashTreeRootBitvector(bv *types.Bitvector) types.Root {
+	chunks := packBits(bv.Len(), func(i int) bool { return bv.Get(i) })
+	limit := (bv.Len() + 255) / 256
+	return Merkleize(chunks, limit)
+}
+
+func HashTreeRootBitlist(bl *types.Bitlist) types.Root {
+	chunks := packBits(bl.Len(), func(i int) bool { return bl.Get(i) })
+	limit := (bl.Limit() + 255) / 256
+	root := Merkleize(chunks, limit)
+	return MixInLength(root, uint64(bl.Len()))
+}
+
+func packBits(n int, get func(int) bool) []types.Root {
+	if n == 0 {
+		return nil
+	}
+	byteLen := (n + 7) / 8
+	data := make([]byte, byteLen)
+	for i := 0; i < n; i++ {
+		if get(i) {
+			data[i/8] |= 1 << (i % 8)
+		}
+	}
+	// Pad to chunk boundary
+	padded := make([]byte, ((byteLen+31)/32)*32)
+	copy(padded, data)
+	chunks := make([]types.Root, len(padded)/32)
+	for i := range chunks {
+		copy(chunks[i][:], padded[i*32:(i+1)*32])
+	}
+	return chunks
+}
+
 func Merkleize(chunks []types.Root, limit int) types.Root {
 	n := len(chunks)
-
 	if n == 0 {
 		if limit > 0 {
 			return zeroTreeRoot(nextPowerOfTwo(limit))
@@ -59,7 +92,6 @@ func Merkleize(chunks []types.Root, limit int) types.Root {
 		}
 		level = next
 	}
-
 	return level[0]
 }
 
