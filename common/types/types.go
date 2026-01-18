@@ -1,6 +1,6 @@
 package types
 
-//go:generate sszgen --path=. --objs=Checkpoint
+//go:generate sszgen --path=. --objs=Checkpoint,Config,Validator,AttestationData,Attestation,AggregatedAttestation,BlockHeader,BlockBody,Block,State
 
 type Slot uint64
 type ValidatorIndex uint64
@@ -14,7 +14,11 @@ type Bytes48 [48]byte
 type Bytes52 [52]byte
 type Bytes96 [96]byte
 
-const SecondsPerSlot uint64 = 4
+const (
+	SecondsPerSlot         uint64 = 4
+	HistoricalRootsLimit   uint64 = 262144 // 2^18
+	ValidatorRegistryLimit uint64 = 4096   // 2^12
+)
 
 func (r Root) IsZero() bool {
 	return r == Root{}
@@ -31,9 +35,66 @@ func TimeToSlot(time, genesisTime uint64) Slot {
 	return Slot((time - genesisTime) / SecondsPerSlot)
 }
 
-// Checkpoint represents a point in the chain used for justification and finalization.
-// It pairs a block root with its slot number.
 type Checkpoint struct {
 	Root Root `ssz-size:"32"`
 	Slot Slot `ssz-size:"8"`
+}
+
+type Config struct {
+	GenesisTime uint64 `ssz-size:"8"`
+}
+
+type Validator struct {
+	Pubkey Bytes52 `ssz-size:"52"`
+	Index  uint64  `ssz-size:"8"`
+}
+
+type AttestationData struct {
+	Slot   Slot `ssz-size:"8"`
+	Head   Checkpoint
+	Target Checkpoint
+	Source Checkpoint
+}
+
+type Attestation struct {
+	ValidatorID uint64 `ssz-size:"8"`
+	Data        AttestationData
+}
+
+type AggregatedAttestation struct {
+	AggregationBits []byte `ssz-max:"4096" ssz:"bitlist"` // ValidatorRegistryLimit
+	Data            AttestationData
+}
+
+type BlockHeader struct {
+	Slot          Slot   `ssz-size:"8"`
+	ProposerIndex uint64 `ssz-size:"8"`
+	ParentRoot    Root   `ssz-size:"32"`
+	StateRoot     Root   `ssz-size:"32"`
+	BodyRoot      Root   `ssz-size:"32"`
+}
+
+type BlockBody struct {
+	Attestations []AggregatedAttestation `ssz-max:"4096"` // ValidatorRegistryLimit
+}
+
+type Block struct {
+	Slot          Slot   `ssz-size:"8"`
+	ProposerIndex uint64 `ssz-size:"8"`
+	ParentRoot    Root   `ssz-size:"32"`
+	StateRoot     Root   `ssz-size:"32"`
+	Body          BlockBody
+}
+
+type State struct {
+	Config                   Config
+	Slot                     Slot `ssz-size:"8"`
+	LatestBlockHeader        BlockHeader
+	LatestJustified          Checkpoint
+	LatestFinalized          Checkpoint
+	HistoricalBlockHashes    []Root      `ssz-max:"262144"`                   // HistoricalRootsLimit
+	JustifiedSlots           []byte      `ssz-max:"262144" ssz:"bitlist"`     // HistoricalRootsLimit
+	Validators               []Validator `ssz-max:"4096"`                     // ValidatorRegistryLimit
+	JustificationsRoots      []Root      `ssz-max:"262144"`                   // HistoricalRootsLimit
+	JustificationsValidators []byte      `ssz-max:"1073741824" ssz:"bitlist"` // 2^30 (262144 × 4096)
 }

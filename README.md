@@ -35,15 +35,15 @@ Core type system and SSZ serialization - the bedrock everything else builds on.
 - [x] SSZ serialization and merkleization
 - [x] `HashTreeRoot()` implementation
 
-### Milestone 2: Consensus Containers
+### Milestone 2: Consensus Containers - COMPLETE
 
 Data structures for blocks, state, and attestations.
 
-- [ ] Checkpoint, Validator containers
-- [ ] Attestation, AttestationData, SignedAttestation
-- [ ] BlockHeader, BlockBody, Block, SignedBlockWithAttestation
-- [ ] State container with full validator registry
-- [ ] Chain configuration constants
+- [x] Config container
+- [x] Validator container
+- [x] AttestationData, Attestation, AggregatedAttestation
+- [x] BlockHeader, BlockBody, Block
+- [x] State container with validator registry
 
 ### Milestone 3: Clock & Genesis
 
@@ -123,11 +123,11 @@ Complete integrated client.
 
 ## Current Status
 
-**Milestone 1: Foundation** - Complete
+**Milestone 2: Consensus Containers** - Complete
 
-The core type system and SSZ serialization are fully implemented. Run `go test ./...` to verify.
+All consensus container types are implemented with SSZ serialization via `fastssz`. Run `go test ./...` to verify.
 
-**Next:** Milestone 2 - Consensus Containers
+**Next:** Milestone 3 - Clock & Genesis
 
 ## License
 
