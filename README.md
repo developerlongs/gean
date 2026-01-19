@@ -28,9 +28,9 @@ Our goal is to build a consensus client that is simple and readable yet elegant 
 - SSZ serialization via fastssz
 - HashTreeRoot implementation
 - Consensus containers (Checkpoint, Validator, Attestation, Block, State)
+- Clock & genesis
 
 **Next:**
-- Clock & genesis
 - State transition
 - Fork choice (LMD-GHOST)
 - Networking (libp2p, GossipSub)
