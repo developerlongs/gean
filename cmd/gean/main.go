@@ -2,87 +2,81 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
-	"time"
 
+	"github.com/alecthomas/kong"
+	"github.com/devylongs/gean/config"
 	"github.com/devylongs/gean/node"
 )
 
+var cli struct {
+	GenesisDir string `arg:"" required:"" help:"Path to genesis directory"`
+	NodeID     string `help:"Node ID from validators.yaml (e.g., gean_0)"`
+	Listen     string `default:"/ip4/0.0.0.0/tcp/9000" help:"Listen multiaddr"`
+	LogLevel   string `default:"info" enum:"debug,info,warn,error" help:"Log level"`
+}
+
 func main() {
-	var (
-		genesisTime    uint64
-		validatorCount uint64
-		validatorIndex int64
-		listenAddr     string
-		bootnodes      string
-		logLevel       string
+	kong.Parse(&cli,
+		kong.Name("gean"),
+		kong.Description("Lean Ethereum consensus client"),
 	)
 
-	flag.Uint64Var(&genesisTime, "genesis-time", uint64(time.Now().Unix()), "Genesis time (unix timestamp)")
-	flag.Uint64Var(&validatorCount, "validator-count", 4, "Number of validators")
-	flag.Int64Var(&validatorIndex, "validator-index", -1, "Validator index (-1 for non-validator)")
-	flag.StringVar(&listenAddr, "listen", "/ip4/0.0.0.0/tcp/9000", "Listen address")
-	flag.StringVar(&bootnodes, "bootnodes", "", "Comma-separated bootnode multiaddrs")
-	flag.StringVar(&logLevel, "log-level", "info", "Log level (debug, info, warn, error)")
-	flag.Parse()
-
+	fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ gean ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	// Setup logger
-	var level slog.Level
-	switch strings.ToLower(logLevel) {
+	level := slog.LevelInfo
+	switch cli.LogLevel {
 	case "debug":
 		level = slog.LevelDebug
 	case "warn":
 		level = slog.LevelWarn
 	case "error":
 		level = slog.LevelError
-	default:
-		level = slog.LevelInfo
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 
-	// Parse bootnodes
-	var bootnodeList []string
-	if bootnodes != "" {
-		bootnodeList = strings.Split(bootnodes, ",")
-	}
-
-	// Build config
-	cfg := &node.Config{
-		GenesisTime:    genesisTime,
-		ValidatorCount: validatorCount,
-		ListenAddrs:    []string{listenAddr},
-		Bootnodes:      bootnodeList,
-		Logger:         logger,
-	}
-
-	if validatorIndex >= 0 {
-		idx := uint64(validatorIndex)
-		cfg.ValidatorIndex = &idx
-	}
-
-	// Create node
-	ctx := context.Background()
-	n, err := node.New(ctx, cfg)
+	// Load configuration
+	cfg, validatorIndices, bootnodes, err := config.Load(cli.GenesisDir, cli.NodeID)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to create node: %v\n", err)
+		logger.Error("failed to load config", "error", err)
 		os.Exit(1)
 	}
 
-	// Start node
-	n.Start()
+	// Build node config
+	nodeCfg := &node.Config{
+		GenesisTime:    cfg.GenesisTime,
+		ValidatorCount: cfg.ValidatorCount,
+		ListenAddrs:    []string{cli.Listen},
+		Bootnodes:      bootnodes,
+		Logger:         logger,
+	}
 
-	logger.Info("gean consensus client running",
-		"slot", n.CurrentSlot(),
-		"peers", n.PeerCount(),
+	if len(validatorIndices) > 0 {
+		nodeCfg.ValidatorIndex = &validatorIndices[0]
+		logger.Info("running as validator", "index", validatorIndices[0])
+	}
+
+	logger.Info("loaded config",
+		"genesis_time", cfg.GenesisTime,
+		"validators", cfg.ValidatorCount,
+		"bootnodes", len(bootnodes),
 	)
 
-	// Wait for interrupt
+	// Create and start node
+	n, err := node.New(context.Background(), nodeCfg)
+	if err != nil {
+		logger.Error("failed to create node", "error", err)
+		os.Exit(1)
+	}
+
+	n.Start()
+	logger.Info("gean running", "slot", n.CurrentSlot(), "peers", n.PeerCount())
+
+	// Wait for shutdown
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
