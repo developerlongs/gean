@@ -192,7 +192,7 @@ func (s *Store) GetVoteTarget() Checkpoint {
 	}
 
 	// Ensure target is in justifiable slot range
-	for !s.Blocks[targetRoot].Slot.IsJustifiableAfter(s.LatestFinalized.Slot) {
+	for !IsJustifiableSlot(int(s.LatestFinalized.Slot), int(s.Blocks[targetRoot].Slot)) {
 		targetRoot = s.Blocks[targetRoot].ParentRoot
 	}
 

@@ -34,8 +34,8 @@ func NewHost(ctx context.Context, cfg HostConfig) (host.Host, error) {
 
 	listenAddrs := cfg.ListenAddrs
 	if len(listenAddrs) == 0 {
+		// Devnet 0 uses QUIC transport
 		listenAddrs = []string{
-			"/ip4/0.0.0.0/tcp/9000",
 			"/ip4/0.0.0.0/udp/9000/quic-v1",
 		}
 	}
@@ -52,16 +52,21 @@ func NewHost(ctx context.Context, cfg HostConfig) (host.Host, error) {
 }
 
 // ParseBootnodes parses a list of multiaddr strings into peer.AddrInfo.
+// Skips ENR records (enr:-...) which require separate decoding.
 func ParseBootnodes(addrs []string) ([]peer.AddrInfo, error) {
 	var peers []peer.AddrInfo
 	for _, addr := range addrs {
+		// Skip ENR records for now - they need special decoding
+		if len(addr) > 4 && addr[:4] == "enr:" {
+			continue
+		}
 		ma, err := multiaddr.NewMultiaddr(addr)
 		if err != nil {
-			return nil, fmt.Errorf("parse multiaddr %s: %w", addr, err)
+			continue // Skip unparseable addresses
 		}
 		pi, err := peer.AddrInfoFromP2pAddr(ma)
 		if err != nil {
-			return nil, fmt.Errorf("parse peer info %s: %w", addr, err)
+			continue
 		}
 		peers = append(peers, *pi)
 	}

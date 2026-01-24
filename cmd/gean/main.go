@@ -7,26 +7,29 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/alecthomas/kong"
-	"github.com/devylongs/gean/config"
 	"github.com/devylongs/gean/node"
 )
 
 var cli struct {
-	GenesisDir string `arg:"" required:"" help:"Path to genesis directory"`
-	NodeID     string `help:"Node ID from validators.yaml (e.g., gean_0)"`
-	Listen     string `default:"/ip4/0.0.0.0/tcp/9000" help:"Listen multiaddr"`
-	LogLevel   string `default:"info" enum:"debug,info,warn,error" help:"Log level"`
+	GenesisTime    uint64   `help:"Genesis time (Unix timestamp). Defaults to 10 seconds from now."`
+	Validators     uint64   `default:"8" help:"Number of validators in the network"`
+	ValidatorIndex *uint64  `help:"Validator index to run as (optional, omit for non-validator)"`
+	Listen         string   `default:"/ip4/0.0.0.0/udp/9000/quic-v1" help:"Listen multiaddr (QUIC)"`
+	Bootnodes      []string `help:"Bootnode multiaddrs"`
+	LogLevel       string   `default:"info" enum:"debug,info,warn,error" help:"Log level"`
 }
 
 func main() {
 	kong.Parse(&cli,
 		kong.Name("gean"),
-		kong.Description("Lean Ethereum consensus client"),
+		kong.Description("Lean Ethereum consensus client (Devnet 0)"),
 	)
 
 	fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ gean ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
 	// Setup logger
 	level := slog.LevelInfo
 	switch cli.LogLevel {
@@ -39,35 +42,36 @@ func main() {
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 
-	// Load configuration
-	cfg, validatorIndices, bootnodes, err := config.Load(cli.GenesisDir, cli.NodeID)
-	if err != nil {
-		logger.Error("failed to load config", "error", err)
-		os.Exit(1)
+	// Set genesis time
+	genesisTime := cli.GenesisTime
+	if genesisTime == 0 {
+		genesisTime = uint64(time.Now().Unix()) + 10
+		logger.Info("genesis time not set, using now + 10 seconds", "genesis_time", genesisTime)
 	}
 
 	// Build node config
 	nodeCfg := &node.Config{
-		GenesisTime:    cfg.GenesisTime,
-		ValidatorCount: cfg.ValidatorCount,
+		GenesisTime:    genesisTime,
+		ValidatorCount: cli.Validators,
+		ValidatorIndex: cli.ValidatorIndex,
 		ListenAddrs:    []string{cli.Listen},
-		Bootnodes:      bootnodes,
+		Bootnodes:      cli.Bootnodes,
 		Logger:         logger,
 	}
 
-	if len(validatorIndices) > 0 {
-		nodeCfg.ValidatorIndex = &validatorIndices[0]
-		logger.Info("running as validator", "index", validatorIndices[0])
+	if cli.ValidatorIndex != nil {
+		logger.Info("running as validator", "index", *cli.ValidatorIndex)
 	}
 
-	logger.Info("loaded config",
-		"genesis_time", cfg.GenesisTime,
-		"validators", cfg.ValidatorCount,
-		"bootnodes", len(bootnodes),
+	logger.Info("config",
+		"genesis_time", genesisTime,
+		"validators", cli.Validators,
+		"bootnodes", len(cli.Bootnodes),
 	)
 
 	// Create and start node
-	n, err := node.New(context.Background(), nodeCfg)
+	ctx, cancel := context.WithCancel(context.Background())
+	n, err := node.New(ctx, nodeCfg)
 	if err != nil {
 		logger.Error("failed to create node", "error", err)
 		os.Exit(1)
@@ -83,4 +87,5 @@ func main() {
 
 	logger.Info("shutting down...")
 	n.Stop()
+	cancel()
 }

@@ -2,11 +2,11 @@ package consensus
 
 import "testing"
 
-func TestIsJustifiableAfter(t *testing.T) {
+func TestIsJustifiableSlot(t *testing.T) {
 	tests := []struct {
 		name      string
-		finalized Slot
-		candidate Slot
+		finalized int
+		candidate int
 		expected  bool
 	}{
 		// Rule 1: delta <= 5
@@ -37,18 +37,18 @@ func TestIsJustifiableAfter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.candidate.IsJustifiableAfter(tt.finalized)
+			got := IsJustifiableSlot(tt.finalized, tt.candidate)
 			if got != tt.expected {
-				t.Errorf("Slot(%d).IsJustifiableAfter(%d) = %v, want %v",
-					tt.candidate, tt.finalized, got, tt.expected)
+				t.Errorf("IsJustifiableSlot(%d, %d) = %v, want %v",
+					tt.finalized, tt.candidate, got, tt.expected)
 			}
 		})
 	}
 }
 
-func TestIsJustifiableAfter_CandidateBeforeFinalized(t *testing.T) {
+func TestIsJustifiableSlot_CandidateBeforeFinalized(t *testing.T) {
 	// Should return false when candidate < finalized
-	got := Slot(9).IsJustifiableAfter(Slot(10))
+	got := IsJustifiableSlot(10, 9)
 	if got != false {
 		t.Errorf("expected false when candidate < finalized")
 	}

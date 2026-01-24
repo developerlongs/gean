@@ -8,21 +8,11 @@ A Go implementation of the Lean Ethereum consensus protocol that is simple enoug
 # Build
 make build
 
-# Run standalone (requires genesis directory from lean-quickstart)
-./bin/gean /path/to/genesis --node-id gean_0
-```
+# Run as validator 0 (genesis auto-generated 10s in future)
+./bin/gean --validators 8 --validator-index 0
 
-## Running in a devnet
-
-To run a local devnet with multiple clients using [lean-quickstart](https://github.com/blockblaz/lean-quickstart):
-
-```sh
-# Clone lean-quickstart
-git clone https://github.com/blockblaz/lean-quickstart.git
-
-# Generate genesis and start devnet
-cd lean-quickstart
-NETWORK_DIR=local-devnet ./spin-node.sh --node gean_0 --generateGenesis
+# Run with explicit genesis time
+./bin/gean --genesis-time 1769271115 --validators 8 --validator-index 0
 ```
 
 ## Philosophy
@@ -43,15 +33,15 @@ Target: [leanSpec devnet 0](https://github.com/leanEthereum/leanSpec/tree/4b750f
 ### Implemented
 
 - **Types** — SSZ containers via fastssz (Block, State, Vote, Checkpoint, Config)
-- **Consensus** — 3SF-mini justification rules, round-robin proposer selection
-- **State transition** — slot processing, block header validation, attestation handling
+- **Consensus** — 3SF-mini justification (2/3 supermajority), round-robin proposer
+- **State transition** — slot processing, block header, attestations with vote tracking
 - **Fork choice** — LMD-GHOST head selection, Store container
-- **Networking** — libp2p host, gossipsub (block and attestation topics)
+- **Networking** — libp2p host (QUIC), gossipsub (block and attestation topics)
 - **Node** — slot ticker, block and attestation production
 
-### Remaining for Devnet 0
+### Next
 
-- Request-Response protocol (Status, BlocksByRoot)
+- [pq-devnet-1](https://github.com/leanEthereum/pm/blob/main/breakout-rooms/leanConsensus/pq-interop/pq-devnet-1.md) — PQ signatures, lean-quickstart integration
 
 ## License
 

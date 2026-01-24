@@ -169,10 +169,16 @@ func (n *Node) onTick() {
 	slot := n.store.CurrentSlot()
 	interval := n.currentInterval()
 
+	// Log slot progression at start of each slot
+	if interval == 0 {
+		n.logger.Debug("slot", "slot", slot, "head", n.store.Head[:4], "peers", n.PeerCount())
+	}
+
 	// Interval 0: Proposer produces block
 	if interval == 0 && n.config.ValidatorIndex != nil {
-		headState := n.store.States[n.store.Head]
-		if headState != nil && headState.IsProposer(consensus.ValidatorIndex(*n.config.ValidatorIndex)) {
+		// Check if we're the proposer for the current slot (round-robin)
+		proposerIndex := uint64(slot) % n.config.ValidatorCount
+		if proposerIndex == *n.config.ValidatorIndex {
 			n.proposeBlock(slot)
 		}
 	}

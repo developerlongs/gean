@@ -4,10 +4,11 @@ BIN_DIR := bin
 BINARY := $(BIN_DIR)/gean
 
 # Configuration
-GENESIS_DIR ?= 
-NODE_ID ?= 
-LISTEN_ADDR ?= /ip4/0.0.0.0/tcp/9000
+VALIDATORS ?= 8
+VALIDATOR_INDEX ?=
+LISTEN_ADDR ?= /ip4/0.0.0.0/udp/9000/quic-v1
 LOG_LEVEL ?= info
+GENESIS_TIME ?=
 
 help: ## Show help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -29,15 +30,12 @@ clean: ## Remove build artifacts
 lint: ## Run go vet
 	go vet ./...
 
-run: ## Run gean (requires GENESIS_DIR)
-ifndef GENESIS_DIR
-	@echo "Usage: make run GENESIS_DIR=/path/to/genesis [NODE_ID=gean_0]"
-	@exit 1
+run: build ## Run gean
+ifdef VALIDATOR_INDEX
+	./$(BINARY) --validators $(VALIDATORS) --validator-index $(VALIDATOR_INDEX) --listen "$(LISTEN_ADDR)" --log-level $(LOG_LEVEL)
 else
-	@$(MAKE) build
-ifdef NODE_ID
-	./$(BINARY) $(GENESIS_DIR) --node-id $(NODE_ID) --listen "$(LISTEN_ADDR)" --log-level $(LOG_LEVEL)
-else
-	./$(BINARY) $(GENESIS_DIR) --listen "$(LISTEN_ADDR)" --log-level $(LOG_LEVEL)
+	./$(BINARY) --validators $(VALIDATORS) --listen "$(LISTEN_ADDR)" --log-level $(LOG_LEVEL)
 endif
-endif
+
+run-validator: build ## Run as validator 0
+	./$(BINARY) --validators $(VALIDATORS) --validator-index 0 --listen "$(LISTEN_ADDR)" --log-level debug
